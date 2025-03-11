@@ -1,0 +1,33 @@
+; Emulates a i2s microphone
+
+.program i2s_mic_emulator
+
+
+
+.wrap_target
+    wait 0 pin 1
+    set x, 23
+    wait 1 pin 0
+    bitloop:
+        wait 0 pin 0
+        out pins, 1
+        wait 1 pin 0
+        jmp x--, bitloop
+    wait 1 pin 1
+.wrap
+
+; State machine configuration
+% c-sdk {
+static inline void i2s_mic_emulator_program_init(PIO pio, uint sm, uint offset, uint SD, uint SCK, uint WS) {
+    pio_gpio_init(pio, SD);
+    pio_sm_set_pindirs_with_mask(pio, sm, (1u << SD), (1u << SD) | (1u << SCK) | (1u << WS));
+    pio_sm_config c = i2s_mic_emulator_program_get_default_config(offset);
+    
+    sm_config_set_out_pins(&c, SD, 1);
+    sm_config_set_in_pins(&c, SCK);
+    sm_config_set_out_shift(&c, false, true, 24);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
