@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/dma.h"
@@ -9,9 +10,14 @@
 #define I2S_SD_PIN 10            // I2S serial data (SD)
 #define I2S_SCK_PIN 11           // I2S serial clock / bit clock, (SCK) / (BCLK)
 #define I2S_WS_PIN 12            // I2S word select/ left rigth clock, (WS) / (LRCLK)
+#define SAMPLES 50
+#define AMPLITUDE 8388607   // Max positive value for 24-bit signed
+#define OFFSET (AMPLITUDE / 2)     // Offset to make values non-negative
+#define SHIFT 8             // Shift left to MSB-align in a 32-bit word
+
 
 int dma_channel;
-uint32_t wavetable[1];
+uint32_t wavetable[SAMPLES];
 
 void dma_handler(){
     dma_hw->ints0 = 1u << dma_channel;
@@ -20,14 +26,10 @@ void dma_handler(){
 
 int main(){
     stdio_init_all();
-    int wavetable_samples = sizeof(wavetable)/sizeof(wavetable[0]);
-
-    wavetable[0] = 0b10000000000000000000000011111111;
-
-    // wavetable[0] = 0xAAAAAAAA;
-    // wavetable[1] = 0xAAAAAAAA;
-    // wavetable[2] = 0xAAAAAAAA;
-    // wavetable[3] = 0xAAAAAAAA;
+    for (int i = 0; i < SAMPLES; i++) {
+        int32_t sample = (int32_t)(OFFSET + (OFFSET * sin(2.0 * M_PI * i / SAMPLES)));
+        wavetable[i] = (uint32_t)sample << SHIFT; // Shift left to MSB-align
+    }
    
     PIO pio;
     uint state_machine;
@@ -49,7 +51,7 @@ int main(){
         &dma_channel_cfg,
         &pio->txf[state_machine],
         wavetable,
-        wavetable_samples,
+        SAMPLES,
         true
     );
 
@@ -58,9 +60,8 @@ int main(){
     irq_set_enabled(DMA_IRQ_0, true);
 
     while (1) 
+    // for (int i = 0; i < SAMPLES; i++) 
+    //         printf("%d - %d \n", i, wavetable[i] );
+    //     sleep_ms(1000);
         tight_loop_contents();
-        // if(pio_sm_is_tx_fifo_empty(pio, state_machine)){
-        //     pio_sm_put (pio, state_machine, wavetable[0]);
-        // }
-    
 }
